@@ -37,7 +37,7 @@ Be specific to what you see — the place, mood, or activity. Keep it casual and
 
 
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${API_KEY}`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -93,7 +93,10 @@ export default function PostcardCreator() {
     const handleFile = useCallback((file) => {
         if (!file || !file.type.startsWith("image/")) return;
         setImageFile(file);
-        setImagePreview(URL.createObjectURL(file));
+        // Convert to data URL instead of blob URL — works better with html2canvas
+        const reader = new FileReader();
+        reader.onload = (e) => setImagePreview(e.target.result);
+        reader.readAsDataURL(file);
         setError("");
     }, []);
 
@@ -123,25 +126,81 @@ export default function PostcardCreator() {
 
 
     const handleDownload = async () => {
-  const node = postcardRef.current;
-  if (!node) return;
+        const cardWidth = 1200;
+        const photoHeight = 480;
+        const bodyHeight = 400;
+        const totalHeight = photoHeight + bodyHeight;
 
-  // Dynamically load html2canvas
-  const script = document.createElement("script");
-  script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-  document.head.appendChild(script);
+        const canvas = document.createElement("canvas");
+        canvas.width = cardWidth;
+        canvas.height = totalHeight;
+        const ctx = canvas.getContext("2d");
 
-  script.onload = async () => {
-    const canvas = await window.html2canvas(node, {
-      useCORS: true,
-      scale: 2, // higher resolution
-    });
-    const link = document.createElement("a");
-    link.download = "postcard.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-};
+        ctx.fillStyle = style.bg;
+        ctx.fillRect(0, 0, cardWidth, totalHeight);
+
+        const img = new Image();
+        img.src = imagePreview;
+        await new Promise((res) => { img.onload = res; });
+
+        const imgAspect = img.width / img.height;
+        const targetAspect = cardWidth / photoHeight;
+        let sx, sy, sw, sh;
+        if (imgAspect > targetAspect) {
+            sh = img.height; sw = sh * targetAspect;
+            sx = (img.width - sw) / 2; sy = 0;
+        } else {
+            sw = img.width; sh = sw / targetAspect;
+            sx = 0; sy = (img.height - sh) / 2;
+        }
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cardWidth, photoHeight);
+
+        ctx.strokeStyle = "rgba(0,0,0,0.08)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, photoHeight); ctx.lineTo(cardWidth, photoHeight);
+        ctx.stroke();
+
+        ctx.fillStyle = style.accent;
+        ctx.font = "22px sans-serif";
+        ctx.globalAlpha = 0.4;
+        ctx.fillText("MESSAGE", 40, photoHeight + 40);
+        ctx.globalAlpha = 1;
+        ctx.font = "26px sans-serif";
+        const words = message.split(" ");
+        let line = ""; let y = photoHeight + 80;
+        for (const word of words) {
+            const test = line + word + " ";
+            if (ctx.measureText(test).width > 500 && line !== "") {
+            ctx.fillText(line, 40, y); line = word + " "; y += 40;
+            } else { line = test; }
+        }
+        ctx.fillText(line, 40, y);
+
+        ctx.setLineDash([10, 8]);
+        ctx.strokeStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.moveTo(cardWidth / 2, photoHeight); ctx.lineTo(cardWidth / 2, totalHeight);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const rx = cardWidth / 2 + 40;
+        ctx.font = "22px sans-serif";
+        ctx.globalAlpha = 0.4;
+        ctx.fillText(recipient ? "To" : "Journal", rx, photoHeight + 100);
+        ctx.globalAlpha = 1;
+        ctx.font = "bold 34px sans-serif";
+        ctx.fillText(recipient || "My memories", rx, photoHeight + 150);
+        ctx.font = "22px sans-serif";
+        ctx.globalAlpha = 0.5;
+        ctx.fillText(recipient ? "with love ♥" : "", rx, photoHeight + 185);
+        ctx.globalAlpha = 1;
+
+        const link = document.createElement("a");
+        link.download = "postcard.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+        };
 
 
     const css = `
@@ -465,9 +524,12 @@ export default function PostcardCreator() {
 
 
     .pc-photo {
-      width: 100%; height: 240px;
-      object-fit: cover;
-      display: block;
+        width: 100%;
+        height: 240px;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+        max-width: 100%;
     }
 
 
@@ -711,17 +773,24 @@ export default function PostcardCreator() {
                             ref={postcardRef}
                             style={{ background: style.bg }}
                         >
-                            <img src={imagePreview} alt="postcard" className="pc-photo" />
+                            <img 
+                                src={imagePreview} 
+                                alt="postcard" 
+                                className="pc-photo"
+                                style={{ imageRendering: "auto" }}
+                            />
                             <div className="pc-body">
                                 <div className="pc-left" style={{ color: style.accent }}>
                                     <div className="pc-label" style={{ color: style.accent }}>Message</div>
-                                    <textarea
+                                    <div
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onInput={(e) => setMessage(e.currentTarget.textContent)}
                                         className="pc-message-text"
-                                        rows={5}
-                                        value={message}
-                                        onChange={(e) => setMessage(e.target.value)}
-                                        style={{ color: style.accent }}
-                                    />
+                                        style={{ color: style.accent, minHeight: "80px", outline: "none", whiteSpace: "pre-wrap" }}
+                                    >
+                                        {message}
+                                    </div>
                                 </div>
                                 <div className="pc-right" style={{ color: style.accent }}>
                                     <div
