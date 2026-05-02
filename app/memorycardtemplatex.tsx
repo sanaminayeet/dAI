@@ -851,10 +851,10 @@ const TemplatePile = forwardRef<HTMLDivElement, MemoryCardProps>(
   ({ images, caption, date, tag }, ref) => {
     // back cards first (low z), front card last (high z, centered)
     const back: [number, number, number, number, number][] = [
-      [30,  60,  -12, 280, 210],
+      [20,  60,  -12, 280, 210],
       [25, 300,   10, 270, 205],
-      [40,  20,    6, 265, 200],
-      [35, 330,   -8, 275, 205],
+      [150, 10,  8, 265, 200],
+      [145, 330,   -8, 275, 205],
     ];
     return (
       <div
@@ -895,7 +895,9 @@ const TemplatePile = forwardRef<HTMLDivElement, MemoryCardProps>(
 
         {/* front hero photo — centered, slight tilt */}
         <div style={{
-          position: "relative",
+          position: "absolute",
+          top: 80,
+          left: 150,
           background: "#FDFAF5",
           padding: "8px 8px 36px",
           boxShadow: "4px 8px 28px rgba(0,0,0,0.65)",
@@ -903,7 +905,7 @@ const TemplatePile = forwardRef<HTMLDivElement, MemoryCardProps>(
           zIndex: 10,
           width: 300,
         }}>
-          <ImageSlot image={images[0]} style={{ width: "100%", height: 230 }} />
+          <ImageSlot image={images[0]} style={{ width: "100%", height: 200 }} />
           <div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
             {caption && <Caption text={caption} align="center" style={{ fontSize: 12, color: palette.brown }} />}
             <Meta date={date} tag={tag} align="center" />
