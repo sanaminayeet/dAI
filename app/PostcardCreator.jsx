@@ -3,135 +3,138 @@
 
 import { useState, useRef, useCallback } from "react";
 
-
 const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
 
 const fileToBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(",")[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 
 
 const generatePostcardMessage = async (imageBase64, mimeType, userContext = "", recipient = "") => {
-  const audienceClause = recipient
-    ? `You are writing to ${recipient}. Match your tone to the relationship — casual for friends, warm for family, etc.`
-    : "You are writing this as a personal journal entry — reflective, first-person, like a travel diary.";
+    if (!API_KEY) {
+        throw new Error("API Key is missing. Check your .env.local file and restart your server.");
+    }
+    
+    const audienceClause = recipient
+        ? `You are writing to ${recipient}. Match your tone to the relationship — casual for friends, warm for family, etc.`
+        : "You are writing this as a personal journal entry — reflective, first-person, like a travel diary.";
 
 
-  const contextClause = userContext
-    ? `The sender also shared this context: "${userContext}".`
-    : "Base the message entirely on what you see in the photo.";
+    const contextClause = userContext
+        ? `The sender also shared this context: "${userContext}".`
+        : "Base the message entirely on what you see in the photo.";
 
 
-  const prompt = `Look at this photo carefully. Write a short, heartfelt postcard message (2-3 sentences).
+    const prompt = `Look at this photo carefully. Write a short, heartfelt postcard message (2-3 sentences).
 ${audienceClause}
 ${contextClause}
 Be specific to what you see — the place, mood, or activity. Keep it casual and natural, not overly poetic. Write in first person as the photo taker. Do not add any preamble or sign-off — just the message body.`;
 
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inline_data: { mime_type: mimeType, data: imageBase64 } },
-              { text: prompt },
-            ],
-          },
-        ],
-        generationConfig: { temperature: 0.9, maxOutputTokens: 150 },
-      }),
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            { inline_data: { mime_type: mimeType, data: imageBase64 } },
+                            { text: prompt },
+                        ],
+                    },
+                ],
+                generationConfig: { temperature: 0.9, maxOutputTokens: 150 },
+            }),
+        }
+    );
+
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || "Gemini API error");
     }
-  );
 
 
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || "Gemini API error");
-  }
-
-
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text.trim();
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text.trim();
 };
 
 
 const STYLES = [
-  { id: "classic",    label: "Classic",    bg: "#fef9f0", accent: "#c8a96e", border: "#e8d5a0" },
-  { id: "polaroid",   label: "Polaroid",   bg: "#f8f8f8", accent: "#333",    border: "#ddd" },
-  { id: "vintage",    label: "Vintage",    bg: "#f5ede0", accent: "#8b4513", border: "#c4956a" },
-  { id: "minimal",    label: "Minimal",    bg: "#ffffff", accent: "#000",    border: "#e0e0e0" },
+    { id: "classic", label: "Classic", bg: "#fef9f0", accent: "#c8a96e", border: "#e8d5a0" },
+    { id: "polaroid", label: "Polaroid", bg: "#f8f8f8", accent: "#333", border: "#ddd" },
+    { id: "vintage", label: "Vintage", bg: "#f5ede0", accent: "#8b4513", border: "#c4956a" },
+    { id: "minimal", label: "Minimal", bg: "#ffffff", accent: "#000", border: "#e0e0e0" },
 ];
 
 
 export default function PostcardCreator() {
-  const [step, setStep] = useState(1);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [recipient, setRecipient] = useState("");
-  const [context, setContext] = useState("");
-  const [message, setMessage] = useState("");
-  const [style, setStyle] = useState(STYLES[0]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef();
-  const postcardRef = useRef();
+    const [step, setStep] = useState(1);
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const [recipient, setRecipient] = useState("");
+    const [context, setContext] = useState("");
+    const [message, setMessage] = useState("");
+    const [style, setStyle] = useState(STYLES[0]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [dragging, setDragging] = useState(false);
+    const fileInputRef = useRef();
+    const postcardRef = useRef();
 
 
-  const handleFile = useCallback((file) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-    setError("");
-  }, []);
+    const handleFile = useCallback((file) => {
+        if (!file || !file.type.startsWith("image/")) return;
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+        setError("");
+    }, []);
 
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragging(false);
-    handleFile(e.dataTransfer.files[0]);
-  };
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        handleFile(e.dataTransfer.files[0]);
+    };
 
 
-  const handleGenerate = async () => {
-    if (!imageFile) return;
-    setLoading(true);
-    setError("");
-    try {
-      const base64 = await fileToBase64(imageFile);
-      const msg = await generatePostcardMessage(base64, imageFile.type, context, recipient);
-      setMessage(msg);
-      setStep(3);
-    } catch (e) {
-      setError(e.message || "Something went wrong. Check your API key.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const handleGenerate = async () => {
+        if (!imageFile) return;
+        setLoading(true);
+        setError("");
+        try {
+            const base64 = await fileToBase64(imageFile);
+            const msg = await generatePostcardMessage(base64, imageFile.type, context, recipient);
+            setMessage(msg);
+            setStep(3);
+        } catch (e) {
+            setError(e.message || "Something went wrong. Check your API key.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
 
-  const handleDownload = () => {
-    const node = postcardRef.current;
-    if (!node) return;
-    // Simple screenshot using html2canvas CDN would be ideal;
-    // for now we open a print dialog as a fallback
-    const w = window.open("", "_blank");
-    w.document.write(`<html><body style="margin:0">${node.outerHTML}</body></html>`);
-    w.document.close();
-    w.print();
-  };
+    const handleDownload = () => {
+        const node = postcardRef.current;
+        if (!node) return;
+        // Simple screenshot using html2canvas CDN would be ideal;
+        // for now we open a print dialog as a fallback
+        const w = window.open("", "_blank");
+        w.document.write(`<html><body style="margin:0">${node.outerHTML}</body></html>`);
+        w.document.close();
+        w.print();
+    };
 
 
-  const css = `
+    const css = `
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=Lato:wght@300;400;700&display=swap');
 
 
@@ -534,232 +537,231 @@ export default function PostcardCreator() {
   `;
 
 
-  return (
-    <>
-      <style>{css}</style>
-      <div className="app">
-        <div className="header">
-          <div className="logo">Postly</div>
-          <div className="tagline">turn moments into postcards</div>
-        </div>
-
-
-        <div className="steps">
-          {["Upload", "Compose", "Preview"].map((s, i) => (
-            <div key={s} style={{ display: "flex", alignItems: "center" }}>
-              {i > 0 && <div className="step-divider" />}
-
-              <div
-                className={`step-item ${
-                  step === i + 1 ? "active" : step > i + 1 ? "done" : ""
-                }`}
-              >
-                <div className="step-num">
-                  {step > i + 1 ? "✓" : i + 1}
+    return (
+        <>
+            <style>{css}</style>
+            <div className="app">
+                <div className="header">
+                    <div className="logo">Postly</div>
+                    <div className="tagline">turn moments into postcards</div>
                 </div>
-                {s}
-              </div>
-            </div>
-          ))}
-        </div>
 
 
-        {/* Step 1 — Upload */}
-        {step === 1 && (
-          <div className="card">
-            <div className="card-title">Choose your photo</div>
+                <div className="steps">
+                    {["Upload", "Compose", "Preview"].map((s, i) => (
+                        <div key={s} style={{ display: "flex", alignItems: "center" }}>
+                            {i > 0 && <div className="step-divider" />}
 
-
-            {!imagePreview ? (
-              <div
-                className={`upload-zone ${dragging ? "dragging" : ""}`}
-                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current.click()}
-              >
-                <div className="upload-icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="3" stroke="#c8a96e" strokeWidth="1.5"/>
-                    <circle cx="8.5" cy="8.5" r="1.5" stroke="#c8a96e" strokeWidth="1.5"/>
-                    <path d="M3 15l5-5 4 4 3-3 6 6" stroke="#c8a96e" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </div>
-                <div className="upload-text">
-                  <strong>Drop a photo here</strong><br />
-                  or click to browse your files
-                </div>
-              </div>
-            ) : (
-              <>
-                <img src={imagePreview} alt="preview" className="preview-img" />
-                <button className="change-btn" onClick={() => { setImageFile(null); setImagePreview(null); }}>
-                  ← change photo
-                </button>
-              </>
-            )}
-
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={(e) => handleFile(e.target.files[0])}
-            />
-
-
-            <div className="btn-row">
-              <button
-                className="btn-primary"
-                disabled={!imageFile}
-                onClick={() => setStep(2)}
-              >
-                Next →
-              </button>
-            </div>
-          </div>
-        )}
-
-
-        {/* Step 2 — Compose */}
-        {step === 2 && (
-          <div className="card">
-            <div className="card-title">Compose your postcard</div>
-
-
-            <div className="field-group">
-              <label>Who are you writing to?</label>
-              <input
-                type="text"
-                placeholder="e.g. Mom, my best friend Jake, Grandma Rose…"
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-              />
-              <div className="hint">Leave blank to write a personal journal entry instead</div>
-            </div>
-
-
-            <div className="field-group">
-              <label>Any context? (optional)</label>
-              <textarea
-                rows={3}
-                placeholder="e.g. We just hiked the trail and it was exhausting but worth it. The sunset was incredible…"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-              />
-              <div className="hint">Leave blank and Gemini will write based on the photo alone</div>
-            </div>
-
-
-            <div className="field-group">
-              <label>Postcard style</label>
-              <div className="style-grid">
-                {STYLES.map((s) => (
-                  <div
-                    key={s.id}
-                    className={`style-chip ${style.id === s.id ? "selected" : ""}`}
-                    onClick={() => setStyle(s)}
-                  >
-                    <div className="style-dot" style={{ background: s.bg, borderColor: s.border }} />
-                    {s.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-
-            {error && <div className="error">{error}</div>}
-
-
-            <div className="btn-row">
-              <button className="btn-ghost" onClick={() => setStep(1)}>← Back</button>
-              <button
-                className="btn-primary"
-                disabled={loading}
-                onClick={handleGenerate}
-              >
-                {loading
-                  ? <span className="loader"><span className="spin" /> Gemini is writing…</span>
-                  : "Generate with Gemini ✦"}
-              </button>
-            </div>
-          </div>
-        )}
-
-
-        {/* Step 3 — Preview */}
-        {step === 3 && (
-          <div className="card">
-            <div className="card-title">Your postcard</div>
-
-
-            <div
-              className="postcard"
-              ref={postcardRef}
-              style={{ background: style.bg }}
-            >
-              <img src={imagePreview} alt="postcard" className="pc-photo" />
-              <div className="pc-body">
-                <div className="pc-left" style={{ color: style.accent }}>
-                  <div className="pc-label" style={{ color: style.accent }}>Message</div>
-                  <textarea
-                    className="pc-message-text"
-                    rows={5}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    style={{ color: style.accent }}
-                  />
-                </div>
-                <div className="pc-right" style={{ color: style.accent }}>
-                  <div
-                    className="pc-stamp"
-                    style={{ background: style.border, color: style.accent }}
-                  >
-                    Postly<br />2026
-                  </div>
-                  {recipient ? (
-                    <>
-                      <div className="pc-to" style={{ color: style.accent }}>To</div>
-                      <div className="pc-recipient" style={{ color: style.accent }}>{recipient}</div>
-                      <div className="pc-subtitle" style={{ color: style.accent }}>with love ♥</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="pc-to" style={{ color: style.accent }}>Journal</div>
-                      <div className="pc-recipient" style={{ color: style.accent }}>My memories</div>
-                    </>
-                  )}
-                  <div className="pc-lines">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="pc-line" style={{ background: style.border }} />
+                            <div
+                                className={`step-item ${step === i + 1 ? "active" : step > i + 1 ? "done" : ""
+                                    }`}
+                            >
+                                <div className="step-num">
+                                    {step > i + 1 ? "✓" : i + 1}
+                                </div>
+                                {s}
+                            </div>
+                        </div>
                     ))}
-                  </div>
                 </div>
-              </div>
+
+
+                {/* Step 1 — Upload */}
+                {step === 1 && (
+                    <div className="card">
+                        <div className="card-title">Choose your photo</div>
+
+
+                        {!imagePreview ? (
+                            <div
+                                className={`upload-zone ${dragging ? "dragging" : ""}`}
+                                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                                onDragLeave={() => setDragging(false)}
+                                onDrop={handleDrop}
+                                onClick={() => fileInputRef.current.click()}
+                            >
+                                <div className="upload-icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                        <rect x="3" y="3" width="18" height="18" rx="3" stroke="#c8a96e" strokeWidth="1.5" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" stroke="#c8a96e" strokeWidth="1.5" />
+                                        <path d="M3 15l5-5 4 4 3-3 6 6" stroke="#c8a96e" strokeWidth="1.5" strokeLinecap="round" />
+                                    </svg>
+                                </div>
+                                <div className="upload-text">
+                                    <strong>Drop a photo here</strong><br />
+                                    or click to browse your files
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <img src={imagePreview} alt="preview" className="preview-img" />
+                                <button className="change-btn" onClick={() => { setImageFile(null); setImagePreview(null); }}>
+                                    ← change photo
+                                </button>
+                            </>
+                        )}
+
+
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFile(e.target.files[0])}
+                        />
+
+
+                        <div className="btn-row">
+                            <button
+                                className="btn-primary"
+                                disabled={!imageFile}
+                                onClick={() => setStep(2)}
+                            >
+                                Next →
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* Step 2 — Compose */}
+                {step === 2 && (
+                    <div className="card">
+                        <div className="card-title">Compose your postcard</div>
+
+
+                        <div className="field-group">
+                            <label>Who are you writing to?</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Mom, my best friend Jake, Grandma Rose…"
+                                value={recipient}
+                                onChange={(e) => setRecipient(e.target.value)}
+                            />
+                            <div className="hint">Leave blank to write a personal journal entry instead</div>
+                        </div>
+
+
+                        <div className="field-group">
+                            <label>Any context? (optional)</label>
+                            <textarea
+                                rows={3}
+                                placeholder="e.g. We just hiked the trail and it was exhausting but worth it. The sunset was incredible…"
+                                value={context}
+                                onChange={(e) => setContext(e.target.value)}
+                            />
+                            <div className="hint">Leave blank and Gemini will write based on the photo alone</div>
+                        </div>
+
+
+                        <div className="field-group">
+                            <label>Postcard style</label>
+                            <div className="style-grid">
+                                {STYLES.map((s) => (
+                                    <div
+                                        key={s.id}
+                                        className={`style-chip ${style.id === s.id ? "selected" : ""}`}
+                                        onClick={() => setStyle(s)}
+                                    >
+                                        <div className="style-dot" style={{ background: s.bg, borderColor: s.border }} />
+                                        {s.label}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+
+                        {error && <div className="error">{error}</div>}
+
+
+                        <div className="btn-row">
+                            <button className="btn-ghost" onClick={() => setStep(1)}>← Back</button>
+                            <button
+                                className="btn-primary"
+                                disabled={loading}
+                                onClick={handleGenerate}
+                            >
+                                {loading
+                                    ? <span className="loader"><span className="spin" /> Gemini is writing…</span>
+                                    : "Generate with Gemini ✦"}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* Step 3 — Preview */}
+                {step === 3 && (
+                    <div className="card">
+                        <div className="card-title">Your postcard</div>
+
+
+                        <div
+                            className="postcard"
+                            ref={postcardRef}
+                            style={{ background: style.bg }}
+                        >
+                            <img src={imagePreview} alt="postcard" className="pc-photo" />
+                            <div className="pc-body">
+                                <div className="pc-left" style={{ color: style.accent }}>
+                                    <div className="pc-label" style={{ color: style.accent }}>Message</div>
+                                    <textarea
+                                        className="pc-message-text"
+                                        rows={5}
+                                        value={message}
+                                        onChange={(e) => setMessage(e.target.value)}
+                                        style={{ color: style.accent }}
+                                    />
+                                </div>
+                                <div className="pc-right" style={{ color: style.accent }}>
+                                    <div
+                                        className="pc-stamp"
+                                        style={{ background: style.border, color: style.accent }}
+                                    >
+                                        Postly<br />2026
+                                    </div>
+                                    {recipient ? (
+                                        <>
+                                            <div className="pc-to" style={{ color: style.accent }}>To</div>
+                                            <div className="pc-recipient" style={{ color: style.accent }}>{recipient}</div>
+                                            <div className="pc-subtitle" style={{ color: style.accent }}>with love ♥</div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="pc-to" style={{ color: style.accent }}>Journal</div>
+                                            <div className="pc-recipient" style={{ color: style.accent }}>My memories</div>
+                                        </>
+                                    )}
+                                    <div className="pc-lines">
+                                        {[...Array(3)].map((_, i) => (
+                                            <div key={i} className="pc-line" style={{ background: style.border }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div className="hint" style={{ marginBottom: "1rem" }}>
+                            You can edit the message directly on the postcard above ↑
+                        </div>
+
+
+                        <div className="btn-row">
+                            <button className="btn-ghost" onClick={() => setStep(2)}>← Edit</button>
+                            <button
+                                className="btn-ghost"
+                                onClick={handleGenerate}
+                            >
+                                Regenerate ↺
+                            </button>
+                            <button className="btn-primary" onClick={handleDownload}>
+                                Download / Print
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
-
-
-            <div className="hint" style={{ marginBottom: "1rem" }}>
-              You can edit the message directly on the postcard above ↑
-            </div>
-
-
-            <div className="btn-row">
-              <button className="btn-ghost" onClick={() => setStep(2)}>← Edit</button>
-              <button
-                className="btn-ghost"
-                onClick={handleGenerate}
-              >
-                Regenerate ↺
-              </button>
-              <button className="btn-primary" onClick={handleDownload}>
-                Download / Print
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
+        </>
+    );
 }
