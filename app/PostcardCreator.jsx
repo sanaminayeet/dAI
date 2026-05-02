@@ -4,7 +4,7 @@
 import { useState, useRef, useCallback } from "react";
 
 
-const API_KEY = "AIzaSyCXhU8H-3Ko8irqjuqLS6FwaRaoy7VnnhM"; // Replace with your key from aistudio.google.com
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
 
 const fileToBase64 = (file) =>
@@ -749,10 +749,7 @@ export default function PostcardCreator() {
               <button className="btn-ghost" onClick={() => setStep(2)}>← Edit</button>
               <button
                 className="btn-ghost"
-                onClick={async () => {
-                  setStep(2);
-                  await handleGenerate();
-                }}
+                onClick={handleGenerate}
               >
                 Regenerate ↺
               </button>
