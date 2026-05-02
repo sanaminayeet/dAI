@@ -15,7 +15,7 @@ const fileToBase64 = (file) =>
     });
 
 
-const generatePostcardMessage = async (imageBase64, mimeType, userContext = "", recipient = "") => {
+const generatePostcardMessage = async (imageBase64, mimeType, userContext = "", recipient = "", language = "English") => {
     if (!API_KEY) {
         throw new Error("API Key is missing. Check your .env.local file and restart your server.");
     }
@@ -30,9 +30,13 @@ const generatePostcardMessage = async (imageBase64, mimeType, userContext = "", 
         : "Base the message entirely on what you see in the photo.";
 
 
+    const languageClause = `Write the message in ${language}.`;
+
+
     const prompt = `Look at this photo carefully. Write a short, heartfelt postcard message (2-3 sentences).
 ${audienceClause}
 ${contextClause}
+${languageClause}
 Be specific to what you see — the place, mood, or activity. Keep it casual and natural, not overly poetic. Write in first person as the photo taker. Do not add any preamble or sign-off — just the message body.`;
 
 
@@ -76,6 +80,7 @@ const STYLES = [
 
 
 export default function PostcardCreator() {
+    const [language, setLanguage] = useState("English");
     const [step, setStep] = useState(1);
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -114,7 +119,7 @@ export default function PostcardCreator() {
         setError("");
         try {
             const base64 = await fileToBase64(imageFile);
-            const msg = await generatePostcardMessage(base64, imageFile.type, context, recipient);
+            const msg = await generatePostcardMessage(base64, imageFile.type, context, recipient, language);
             setMessage(msg);
             setStep(3);
         } catch (e) {
@@ -614,8 +619,8 @@ export default function PostcardCreator() {
             <style>{css}</style>
             <div className="app">
                 <div className="header">
-                    <div className="logo">Postly</div>
-                    <div className="tagline">turn moments into postcards</div>
+                    <div className="logo">dAI</div>
+                    <div className="tagline">how was your dAI?</div>
                 </div>
 
 
@@ -713,6 +718,35 @@ export default function PostcardCreator() {
                             <div className="hint">Leave blank to write a personal journal entry instead</div>
                         </div>
 
+                        <div className="field-group">
+                            <label>Language</label>
+                            <select
+                                value={language}
+                                onChange={(e) => setLanguage(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    background: "#1a1612",
+                                    border: "1px solid #3a3028",
+                                    borderRadius: "8px",
+                                    padding: "10px 14px",
+                                    color: "#f0ebe3",
+                                    fontSize: "14px",
+                                    fontFamily: "Lato, sans-serif",
+                                    outline: "none",
+                                }}
+                            >
+                                <option value="English">English</option>
+                                <option value="French">French</option>
+                                <option value="Spanish">Spanish</option>
+                                <option value="Japanese">Japanese</option>
+                                <option value="Mandarin Chinese">Mandarin Chinese</option>
+                                <option value="Arabic">Arabic</option>
+                                <option value="Portuguese">Portuguese</option>
+                                <option value="Korean">Korean</option>
+                                <option value="Italian">Italian</option>
+                                <option value="German">German</option>
+                            </select>
+                        </div>
 
                         <div className="field-group">
                             <label>Any context? (optional)</label>
@@ -797,7 +831,7 @@ export default function PostcardCreator() {
                                         className="pc-stamp"
                                         style={{ background: style.border, color: style.accent }}
                                     >
-                                        Postly<br />2026
+                                        dAI<br />2026
                                     </div>
                                     {recipient ? (
                                         <>
