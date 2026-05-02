@@ -122,16 +122,26 @@ export default function PostcardCreator() {
     };
 
 
-    const handleDownload = () => {
-        const node = postcardRef.current;
-        if (!node) return;
-        // Simple screenshot using html2canvas CDN would be ideal;
-        // for now we open a print dialog as a fallback
-        const w = window.open("", "_blank");
-        w.document.write(`<html><body style="margin:0">${node.outerHTML}</body></html>`);
-        w.document.close();
-        w.print();
-    };
+    const handleDownload = async () => {
+  const node = postcardRef.current;
+  if (!node) return;
+
+  // Dynamically load html2canvas
+  const script = document.createElement("script");
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+  document.head.appendChild(script);
+
+  script.onload = async () => {
+    const canvas = await window.html2canvas(node, {
+      useCORS: true,
+      scale: 2, // higher resolution
+    });
+    const link = document.createElement("a");
+    link.download = "postcard.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+};
 
 
     const css = `
